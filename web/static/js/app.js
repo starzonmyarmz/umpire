@@ -4,6 +4,10 @@ const App = {
   diffContainer: null,
   commitMessageEdits: {},
   commitComments: {},
+  // Whether whitespace-only changes are hidden, the way GitHub hides them
+  // behind `?w=1`. Seeded from that same query param so a shared link carries
+  // the setting, and written back on every toggle for the same reason.
+  ignoreWhitespace: false,
 
   // A commit body is hard-wrapped at 72 columns, but real bodies rarely fill
   // the full width, so a pane sized to an exact 72-column line reads wider than
@@ -14,6 +18,7 @@ const App = {
 
   async init() {
     this.diffContainer = document.getElementById('diff-container');
+    this.ignoreWhitespace = this.readWhitespaceParam();
 
     const info = await API.getInfo();
     this.info = info;
@@ -21,6 +26,7 @@ const App = {
       `${info.base_ref}..${info.head_ref}`;
 
     this.initSubmitBar();
+    this.initWhitespaceToggle();
     this.initKeyboardShortcuts();
     Resize.init();
 
@@ -30,7 +36,7 @@ const App = {
       Sidebar.activeCommitSHA = firstCommit.sha;
       Sidebar.render();
       const [fullDiff] = await Promise.all([
-        API.getDiff(),
+        API.getDiff(null, { ignoreWhitespace: this.ignoreWhitespace }),
         this.loadCommitDiff(firstCommit.sha),
       ]);
       this.fullDiff = fullDiff;
@@ -43,6 +49,45 @@ const App = {
     document.getElementById('submit-review').addEventListener('click', () => {
       this.submitReview();
     });
+  },
+
+  readWhitespaceParam() {
+    return new URLSearchParams(window.location.search).get('w') === '1';
+  },
+
+  writeWhitespaceParam() {
+    const url = new URL(window.location.href);
+    if (this.ignoreWhitespace) {
+      url.searchParams.set('w', '1');
+    } else {
+      url.searchParams.delete('w');
+    }
+    window.history.replaceState(null, '', url);
+  },
+
+  // Toggling re-fetches rather than filtering in the browser: git has to be the
+  // one ignoring whitespace, or lines it considered changed would still be here
+  // and re-aligning them client-side would mean re-implementing its matcher.
+  initWhitespaceToggle() {
+    const toggle = document.getElementById('ignore-whitespace');
+    toggle.checked = this.ignoreWhitespace;
+    toggle.addEventListener('change', async () => {
+      this.ignoreWhitespace = toggle.checked;
+      this.writeWhitespaceParam();
+
+      await this.reloadCurrentDiff();
+    });
+  },
+
+  // Re-renders whichever diff the sidebar is currently showing, so toggling
+  // doesn't drop the reviewer out of the commit they were reading.
+  async reloadCurrentDiff() {
+    this.flushPendingEdits();
+    if (Sidebar.activeCommitSHA) {
+      await this.loadCommitDiff(Sidebar.activeCommitSHA);
+    } else {
+      await this.loadFullDiff();
+    }
   },
 
   initKeyboardShortcuts() {
@@ -148,7 +193,7 @@ const App = {
 
   async loadFullDiff() {
     this.removeCommitHeader();
-    const diff = await API.getDiff();
+    const diff = await API.getDiff(null, { ignoreWhitespace: this.ignoreWhitespace });
     this.fullDiff = diff;
     this.renderDiff(diff);
   },
@@ -156,7 +201,7 @@ const App = {
   async loadCommitDiff(sha) {
     const commit = Sidebar.commits.find(c => c.sha === sha);
     this.renderCommitHeader(commit);
-    const diff = await API.getDiff(sha);
+    const diff = await API.getDiff(sha, { ignoreWhitespace: this.ignoreWhitespace });
     this.renderDiff(diff);
   },
 

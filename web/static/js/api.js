@@ -11,9 +11,15 @@ const API = {
     return resp.json();
   },
 
-  async getDiff(commitSHA) {
-    const url = commitSHA ? `/api/diff?commit=${commitSHA}` : '/api/diff';
-    const resp = await fetch(url);
+  // ignoreWhitespace drops whitespace-only changes, the way GitHub's `?w=1`
+  // does. The server owns that decision -- it is git that has to ignore
+  // whitespace while matching lines, not the renderer.
+  async getDiff(commitSHA, { ignoreWhitespace = false } = {}) {
+    const params = new URLSearchParams();
+    if (commitSHA) params.set('commit', commitSHA);
+    if (ignoreWhitespace) params.set('w', '1');
+    const query = params.toString();
+    const resp = await fetch(query ? `/api/diff?${query}` : '/api/diff');
     return resp.text();
   },
 

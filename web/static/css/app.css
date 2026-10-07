@@ -70,6 +70,27 @@ body {
   font-size: 0.85rem;
 }
 
+#whitespace-toggle {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+#whitespace-toggle:hover {
+  color: var(--text-primary);
+}
+
+#whitespace-toggle input {
+  cursor: pointer;
+  margin: 0;
+}
+
 /* === Layout === */
 #layout {
   display: flex;
