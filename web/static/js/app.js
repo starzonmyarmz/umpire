@@ -75,6 +75,18 @@ const App = {
       this.ignoreWhitespace = toggle.checked;
       this.writeWhitespaceParam();
 
+      // Comments are anchored to line numbers, and ignoring whitespace moves
+      // them, so nothing typed against the old view can be trusted to still
+      // point where its author meant.
+      if (ReviewState.getCommentCount() > 0 && !confirm(
+        'Hiding whitespace changes moves line numbers, so existing line ' +
+        'comments may point at the wrong code. Turn it on anyway?')) {
+        toggle.checked = false;
+        this.ignoreWhitespace = false;
+        this.writeWhitespaceParam();
+        return;
+      }
+
       await this.reloadCurrentDiff();
     });
   },
