@@ -104,6 +104,7 @@ running won't pick them up.
 
 - Commit-by-commit or full-diff view with syntax-highlighted diffs
 - Expand additional context lines around any hunk
+- Ignore-whitespace toggle (or `?w=1`) to hide reformatting noise
 - Inline commenting on any diff line
 - Propose commit message rewrites (subject and body) alongside your review
 - Resizable sidebar and commit-message panes
