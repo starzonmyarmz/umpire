@@ -108,8 +108,6 @@ const App = {
       Sidebar.switchTab('commits');
       this.loadCommitDiff(commits[nextIndex].sha);
     }
-
-    window.scrollTo({ top: 0 });
   },
 
   // Persist any in-progress edits before navigating away, as if each editor's
@@ -151,6 +149,7 @@ const App = {
     const diff = await API.getDiff();
     this.fullDiff = diff;
     this.renderDiff(diff);
+    window.scrollTo({ top: 0 });
   },
 
   async loadCommitDiff(sha) {
@@ -158,6 +157,7 @@ const App = {
     this.renderCommitHeader(commit);
     const diff = await API.getDiff(sha);
     this.renderDiff(diff);
+    window.scrollTo({ top: 0 });
   },
 
   renderCommitHeader(commit) {
