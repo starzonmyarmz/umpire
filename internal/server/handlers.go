@@ -74,13 +74,16 @@ func (rc *ReviewContext) handleCommits(w http.ResponseWriter, r *http.Request) {
 
 func (rc *ReviewContext) handleDiff(w http.ResponseWriter, r *http.Request) {
 	commitSHA := r.URL.Query().Get("commit")
+	opts := git.DiffOptions{
+		IgnoreWhitespace: isTruthy(r.URL.Query().Get("w")),
+	}
 
 	var diff string
 	var err error
 	if commitSHA != "" {
-		diff, err = rc.Repo.DiffForCommit(commitSHA)
+		diff, err = rc.Repo.DiffForCommit(commitSHA, opts)
 	} else {
-		diff, err = rc.Repo.DiffBetween(rc.MergeBase, rc.HeadSHA)
+		diff, err = rc.Repo.DiffBetween(rc.MergeBase, rc.HeadSHA, opts)
 	}
 	if err != nil {
 		serverError(w, "generating diff", err)
@@ -89,6 +92,16 @@ func (rc *ReviewContext) handleDiff(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write([]byte(diff))
+}
+
+// isTruthy reads a query flag the way GitHub's own `?w=1` reads, so a shared
+// link works the same in both. Anything unrecognized counts as off.
+func isTruthy(value string) bool {
+	switch strings.ToLower(value) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }
 
 func (rc *ReviewContext) handleFiles(w http.ResponseWriter, r *http.Request) {

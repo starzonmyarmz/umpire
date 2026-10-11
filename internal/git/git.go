@@ -97,14 +97,35 @@ func (r *Repo) CommitsBetween(base, head string) ([]Commit, error) {
 	return commits, nil
 }
 
+// DiffOptions tweaks how a diff is generated. The zero value is git's default.
+type DiffOptions struct {
+	// IgnoreWhitespace passes -w, so a line that differs from its counterpart
+	// only in whitespace counts as unchanged. Reformatting that touched every
+	// line of a file drops out of the diff entirely, and a file whose only
+	// change was whitespace disappears from it.
+	IgnoreWhitespace bool
+}
+
+// args returns the flags for opts, in a position git accepts for both `diff`
+// and `diff-tree`.
+func (o DiffOptions) args() []string {
+	if o.IgnoreWhitespace {
+		return []string{"-w"}
+	}
+	return nil
+}
+
 // DiffBetween returns the unified diff between two refs.
-func (r *Repo) DiffBetween(base, head string) (string, error) {
-	return r.run("diff", base+"..."+head)
+func (r *Repo) DiffBetween(base, head string, opts DiffOptions) (string, error) {
+	args := append([]string{"diff"}, opts.args()...)
+	return r.run(append(args, base+"..."+head)...)
 }
 
 // DiffForCommit returns the unified diff for a single commit.
-func (r *Repo) DiffForCommit(sha string) (string, error) {
-	return r.run("diff-tree", "-p", "--no-commit-id", sha)
+func (r *Repo) DiffForCommit(sha string, opts DiffOptions) (string, error) {
+	args := append([]string{"diff-tree"}, opts.args()...)
+	args = append(args, "-p", "--no-commit-id", sha)
+	return r.run(args...)
 }
 
 // ChangedFiles returns the list of files changed between two refs.

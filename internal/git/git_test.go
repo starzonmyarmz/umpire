@@ -145,7 +145,7 @@ func TestDiffBetween(t *testing.T) {
 	defer cleanup()
 
 	repo := NewRepo(dir)
-	diff, err := repo.DiffBetween("main", "feature")
+	diff, err := repo.DiffBetween("main", "feature", DiffOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestDiffForCommit(t *testing.T) {
 	repo := NewRepo(dir)
 	commits, _ := repo.CommitsBetween("main", "feature")
 	// Get diff for "Add hello function" (first in list, oldest)
-	diff, err := repo.DiffForCommit(commits[0].SHA)
+	diff, err := repo.DiffForCommit(commits[0].SHA, DiffOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,6 +173,79 @@ func TestDiffForCommit(t *testing.T) {
 	}
 	if strings.Contains(diff, "world.go") {
 		t.Error("diff should not contain world.go")
+	}
+}
+
+// reindentReadme commits a change to README.md that alters nothing but
+// indentation, and returns its SHA. README.md exists on main, so main..feature
+// sees a modification -- the case `-w` is there to erase. It is left
+// reindented, so callers that need the branch's later commits to be the
+// whitespace-only one should call it last.
+func reindentReadme(t *testing.T, dir string) string {
+	t.Helper()
+	writeFile(t, dir, "README.md", "#  Test\n")
+	gitAdd(t, dir, "README.md")
+	gitCommit(t, dir, "Reindent readme")
+
+	commits, err := NewRepo(dir).CommitsBetween("main", "feature")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return commits[len(commits)-1].SHA
+}
+
+func TestDiffBetweenIgnoringWhitespace(t *testing.T) {
+	dir, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	repo := NewRepo(dir)
+	reindentReadme(t, dir)
+
+	withWhitespace, err := repo.DiffBetween("main", "feature", DiffOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(withWhitespace, "README.md") {
+		t.Error("default diff should show the reindentation")
+	}
+
+	withoutWhitespace, err := repo.DiffBetween("main", "feature", DiffOptions{IgnoreWhitespace: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A file whose every change was whitespace drops out of the diff entirely,
+	// while the branch's real work (hello.go, world.go) is untouched by it.
+	if strings.Contains(withoutWhitespace, "README.md") {
+		t.Errorf("whitespace-ignoring diff should hide the reindented file, got:\n%s", withoutWhitespace)
+	}
+	if !strings.Contains(withoutWhitespace, "hello.go") {
+		t.Error("whitespace-ignoring diff should keep the branch's real changes")
+	}
+}
+
+func TestDiffForCommitIgnoringWhitespace(t *testing.T) {
+	dir, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	repo := NewRepo(dir)
+	reindentSHA := reindentReadme(t, dir)
+
+	diff, err := repo.DiffForCommit(reindentSHA, DiffOptions{IgnoreWhitespace: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(diff) != "" {
+		t.Errorf("whitespace-only commit should produce an empty diff, got:\n%s", diff)
+	}
+
+	// The same commit without the option is not empty, so the assertion above
+	// is testing the flag rather than a diff that was empty to begin with.
+	withWhitespace, err := repo.DiffForCommit(reindentSHA, DiffOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(withWhitespace) == "" {
+		t.Error("default commit diff should still show the reindentation")
 	}
 }
 

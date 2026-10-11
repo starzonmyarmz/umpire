@@ -198,6 +198,52 @@ func TestHandleDiffForCommit(t *testing.T) {
 	}
 }
 
+func TestHandleDiffIgnoringWhitespace(t *testing.T) {
+	ts, rc := setupTestServerWithContext(t)
+	defer ts.Close()
+
+	// A commit that only reindents lines of a file already on main, which is
+	// exactly the change `?w=1` is meant to disappear. The context pins HEAD at
+	// setup, so the new commit has to be adopted by hand.
+	dir := rc.Repo.Dir
+	writeFile(t, dir, "README.md", "#  Test\n")
+	gitRun(t, dir, "commit", "-am", "Reindent readme")
+	headSHA, err := rc.Repo.ResolveSHA("feature")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rc.HeadSHA = headSHA
+
+	plain := fetchDiff(t, ts.URL, "")
+	if !strings.Contains(plain, "README.md") {
+		t.Error("default diff should show the reindentation")
+	}
+
+	ignored := fetchDiff(t, ts.URL, "?w=1")
+	if strings.Contains(ignored, "README.md") {
+		t.Errorf("diff with w=1 should hide the whitespace-only change, got:\n%s", ignored)
+	}
+
+	// Unrecognized values mean off, so a stray ?w= never silently hides code.
+	if other := fetchDiff(t, ts.URL, "?w=nope"); !strings.Contains(other, "README.md") {
+		t.Error("an unrecognized w value should not ignore whitespace")
+	}
+}
+
+func fetchDiff(t *testing.T, baseURL, query string) string {
+	t.Helper()
+	resp, err := http.Get(baseURL + "/api/diff" + query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(body)
+}
+
 func TestHandleFiles(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.Close()
